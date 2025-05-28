@@ -17,7 +17,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import BackgroundVideoBanner from "../components/BackgroundVideoBanner";
 import { API_BASE_URL } from "../config";
 import LoadingScreen from "./LoadingScreen";
-import usePushNotification  from "../helper/pushNotification";
+import usePushNotification, { checkNotificationStatus } from "../helper/pushNotification";
 
 export default function HomeScreen({ navigation }) {
   const [eventLogo, setEventLogo] = useState("");
@@ -47,7 +47,32 @@ export default function HomeScreen({ navigation }) {
   useLayoutEffect(() => {
     fetchLocalDetails();
   }, []);
-  usePushNotification(); // Initialize push notifications
+
+  // Initialize push notifications
+  usePushNotification();
+
+  // Check notification status when screen focuses (less frequent)
+  useEffect(() => {
+    const unsubscribe = navigation.addListener('focus', () => {
+      // Only check notification status occasionally to avoid spam
+      const checkNotifications = async () => {
+        const lastCheck = await AsyncStorage.getItem('last_notification_check');
+        const now = Date.now();
+        
+        // Only check every 24 hours or on first visit
+        if (!lastCheck || (now - parseInt(lastCheck)) > 24 * 60 * 60 * 1000) {
+          setTimeout(() => {
+            checkNotificationStatus();
+            AsyncStorage.setItem('last_notification_check', now.toString());
+          }, 3000); // Delay to avoid overwhelming the user
+        }
+      };
+      
+      checkNotifications();
+    });
+
+    return unsubscribe;
+  }, [navigation]);
 
   const loadFonts = async () => {
     try {
@@ -69,6 +94,11 @@ export default function HomeScreen({ navigation }) {
   // Callback function to handle when video is loaded
   const handleVideoLoaded = () => {
     setVideoLoaded(true);
+  };
+
+  // Handle notification settings tap
+  const handleNotificationSettings = async () => {
+    await checkNotificationStatus();
   };
 
   // Show loading screen until everything is ready
@@ -114,6 +144,7 @@ export default function HomeScreen({ navigation }) {
 
             <TouchableOpacity
               style={[styles.menuCard, { backgroundColor: "#e9d2c2" }]}
+              onPress={handleNotificationSettings}
             >
               <View
                 style={[styles.iconContainer, { backgroundColor: "#FFE9D6" }]}
