@@ -6,27 +6,25 @@ import {
   Button,
   ActivityIndicator,
 } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
+
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Colors } from "../constants/colors";
 import { useState } from "react";
 import { fetchEvents } from "../constants/api/eventApi";
 import Toast from "react-native-toast-message";
+import BackgroundVideoBanner from "../components/BackgroundVideoBanner";
+import CustomButton from "../components/CustomButton";
 
 export default function EventRegistrationScreen({ navigation }) {
   const [eventId, setEventId] = useState("");
-  const [eventIdError, setEventIdError] = useState("");
   const [loading, setLoading] = useState(false);
   async function pressHandler() {
-    setEventIdError("");
-
     if (!eventId.trim()) {
       Toast.show({
         type: "error",
         text1: "Event ID Not Found",
         text2: "Please Enter the Event Id",
       });
-      setEventIdError("Please enter an Event ID.");
       return;
     }
     setLoading(true);
@@ -39,27 +37,37 @@ export default function EventRegistrationScreen({ navigation }) {
         response.Data.event &&
         typeof response.Data.event === "object"
       ) {
-        Toast.show({
-          type: "success",
-          text1: "Welcome User To : ",
-          text2: response.Data.event.Event_Name,
-        });
+        if (response.Data.event.IsApp === "1") {
+          Toast.show({
+            type: "success",
+            text1: "Welcome User To : ",
+            text2: response.Data.event.Event_Name,
+          });
 
-        return navigation.navigate("UserRegister", {
-          event: response.Data.event,
-          eventId: eventId,
-        });
+          return navigation.navigate("UserRegister", {
+            event: response.Data.event,
+            eventId: eventId,
+          });
+        } else {
+          Toast.show({
+            type: "success",
+            text1: "Event Found ",
+            text2: "Event Does Not Support App feature",
+          });
+          return navigation.navigate("ErrorPage", {
+            status: "Feature Not Available",
+            message:
+              "This feature isn’t available for that event just yet. Try a different one or check back later!",
+            action: true,
+          });
+        }
       } else {
         Toast.show({
           type: "error",
           text1: "Event Not Found !",
           text2: "Please Check the Event Id",
         });
-        return navigation.navigate("ErrorPage", {
-          message: "Event not found for ID: " + eventId,
-          status: "404 Not Found",
-          action: true
-        });
+        setEventId("");
       }
     } catch (err) {
       Toast.show({
@@ -67,55 +75,44 @@ export default function EventRegistrationScreen({ navigation }) {
         text1: "Event Not Found !",
         text2: "Please Check the Event Id",
       });
-      return navigation.navigate("ErrorPage", {
-        message: "There was a problem fetching the event. Please try again.",
-        status: "500 Server Error",
-        action: true
-      });
+      setEventId("");
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <SafeAreaView style={styles.rootOuterContainer}>
-      <LinearGradient
-        style={styles.rootInnerContainer}
-        colors={[Colors.primary500, Colors.primary600, Colors.primary700]}
-      >
-        <View style={styles.container}>
-          <Text style={styles.text}>Welcome to Event</Text>
-          <TextInput
-            style={[
-              styles.inputText,
-              eventIdError ? styles.inputErrorBorder : null,
-            ]}
-            onChangeText={(text) => {
-              setEventId(text);
-              if (text.trim()) setEventIdError("");
-            }}
-            value={eventId}
-            placeholder="Event Id : "
-            editable={!loading}
-          />
-
-          {eventIdError ? (
-            <Text style={styles.errorText}>{eventIdError}</Text>
-          ) : null}
-
-          {loading ? (
-            <ActivityIndicator size="large" color={Colors.accent500} />
-          ) : (
-            <Button
-              title="Submit"
-              color={Colors.accent500}
-              onPress={pressHandler}
-              disabled={loading}
+    <>
+      <BackgroundVideoBanner />
+      <SafeAreaView style={styles.rootOuterContainer}>
+        <View style={styles.rootInnerContainer}>
+          <View style={styles.container}>
+            <Text style={styles.text}>Welcome to Event</Text>
+            <TextInput
+              style={styles.inputText}
+              onChangeText={setEventId}
+              value={eventId}
+              placeholder="Event Id : "
+              editable={!loading}
             />
-          )}
+
+            {loading ? (
+              <ActivityIndicator size="large" color={Colors.accent500} />
+            ) : (
+              <CustomButton
+                text="Submit"
+                onPress={pressHandler}
+                color="#efab0d"
+                rippleColor="rgba(0,0,0,0.1)"
+                size="medium"
+                borderRadius={30}
+              
+              />
+            )}
+          </View>
         </View>
-      </LinearGradient>
-    </SafeAreaView>
+      </SafeAreaView>
+    </>
   );
 }
 

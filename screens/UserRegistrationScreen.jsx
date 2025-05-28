@@ -6,20 +6,26 @@ import {
   Button,
   Image,
   ActivityIndicator,
+  KeyboardAvoidingView,
+  Platform,
+  ScrollView,
+  TouchableWithoutFeedback,
+  Keyboard,
 } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Colors } from "../constants/colors";
 import { useLayoutEffect, useState } from "react";
 import { API_BASE_URL } from "../config";
 import { fetchSpecificUserId } from "../constants/api/eventApi";
 import Toast from "react-native-toast-message";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import BackgroundVideoBanner from "../components/BackgroundVideoBanner";
+import CustomButton from "../components/CustomButton";
 
 export default function UserRegistrationScreen({ navigation, route }) {
   const { event, eventId } = route.params;
   const [eventName, setEventName] = useState("");
   const [eventLogo, setEventLogo] = useState("");
-  const [eventIdError, setEventIdError] = useState("");
   const [loading, setLoading] = useState(false);
   const [userId, setUserId] = useState("");
   useLayoutEffect(() => {
@@ -28,15 +34,12 @@ export default function UserRegistrationScreen({ navigation, route }) {
   }, [event]);
 
   async function pressHandler() {
-    setEventIdError("");
-
     if (!userId.trim()) {
       Toast.show({
         type: "error",
         text1: "User ID Not Found",
-        text2: "Please Enter the User Id",
+        text2: "Please Enter Your User Id",
       });
-      setEventIdError("Please enter an User ID.");
       return;
     }
     setLoading(true);
@@ -49,8 +52,10 @@ export default function UserRegistrationScreen({ navigation, route }) {
           text1: "Welcome User To : ",
           text2: response.Data.User_ID,
         });
-
-    
+        await AsyncStorage.setItem("eventId", eventId);
+        await AsyncStorage.setItem("userId", userId);
+        await AsyncStorage.setItem("eventName", event.Event_Name);
+        await AsyncStorage.setItem("eventLogo", event.Event_Logo);
         return navigation.navigate("MyTabs", {
           event: response.Data.event,
           eventId: eventId,
@@ -61,11 +66,7 @@ export default function UserRegistrationScreen({ navigation, route }) {
           text1: "User Not Found !",
           text2: "Please Check the User Id",
         });
-        return navigation.navigate("ErrorPage", {
-          message: "User not found for ID: " + eventId,
-          status: "404 Not Found",
-          action: true
-        });
+        setUserId("");
       }
     } catch (err) {
       Toast.show({
@@ -73,57 +74,66 @@ export default function UserRegistrationScreen({ navigation, route }) {
         text1: "User Not Found !",
         text2: "Please Check the User Id",
       });
-      return navigation.navigate("ErrorPage", {
-        message:
-          "There was a problem fetching the user details. Please try again.",
-        status: "500 Server Error",
-        action: true
-      });
+      setUserId("");
     } finally {
       setLoading(false);
     }
   }
 
   return (
-    <SafeAreaView style={styles.rootOuterContainer}>
-      <LinearGradient
-        style={styles.rootInnerContainer}
-        colors={[Colors.primary500, Colors.primary600, Colors.primary700]}
+    <>
+      <BackgroundVideoBanner />
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.select({ ios: 0, android: 20 })}
       >
-        <View style={styles.container}>
-          <Image source={{ uri: eventLogo }} width={150} height={150} />
-          <Text style={styles.primaryText}>{eventName}</Text>
-          <Text style={styles.secondaryText}> Sign in to your accounts</Text>
-          <TextInput
-            style={[
-              styles.inputText,
-              eventIdError ? styles.inputErrorBorder : null,
-            ]}
-            onChangeText={(text) => {
-              setUserId(text);
-              if (text.trim()) setEventIdError("");
-            }}
-            value={userId}
-            placeholder="User Id : "
-            editable={!loading}
-          />
+        {/* Dismiss keyboard when tapping outside */}
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <SafeAreaView style={styles.rootOuterContainer}>
+            <ScrollView
+              contentContainerStyle={{
+                flexGrow: 1, // allow content to fill full height
+                justifyContent: "center", // vertically center when there's room
+                paddingVertical: 16,
+              }}
+              keyboardShouldPersistTaps="handled"
+            >
+              <View style={styles.rootInnerContainer}>
+                <View style={styles.container}>
+                  <Image source={{ uri: eventLogo }} width={150} height={150} />
+                  <Text style={styles.primaryText}>{eventName}</Text>
+                  <Text style={styles.secondaryText}>
+                    {" "}
+                    Sign in to your accounts
+                  </Text>
+                  <TextInput
+                    style={styles.inputText}
+                    onChangeText={setUserId}
+                    value={userId}
+                    placeholder="User Id : "
+                    editable={!loading}
+                  />
 
-          {eventIdError ? (
-            <Text style={styles.errorText}>{eventIdError}</Text>
-          ) : null}
-          {loading ? (
-            <ActivityIndicator size="large" color={Colors.accent500} />
-          ) : (
-            <Button
-              title="Submit"
-              color={Colors.accent500}
-              onPress={pressHandler}
-              disabled={loading}
-            />
-          )}
-        </View>
-      </LinearGradient>
-    </SafeAreaView>
+                  {loading ? (
+                    <ActivityIndicator size="large" color={Colors.accent500} />
+                  ) : (
+                    <CustomButton
+                      text="Submit"
+                      onPress={pressHandler}
+                      color="#efab0d"
+                      rippleColor="rgba(0,0,0,0.1)"
+                      size="medium"
+                      borderRadius={30}
+                    />
+                  )}
+                </View>
+              </View>
+            </ScrollView>
+          </SafeAreaView>
+        </TouchableWithoutFeedback>
+      </KeyboardAvoidingView>
+    </>
   );
 }
 
@@ -137,7 +147,7 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
-    height: "70%",
+    // height: "70%",
     width: "100%",
     justifyContent: "center",
     alignItems: "center",

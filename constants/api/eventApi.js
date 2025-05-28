@@ -8,9 +8,9 @@ export const fetchEvents = async (eventId) => {
         Event_ID: eventId,
       },
     });
-    console.log(response.data)
-    return response.data;
+    // console.log(response.data)
 
+    return response.data;
   } catch (error) {
     // console.error('Error fetching events:', error);
     throw error;
@@ -25,9 +25,27 @@ export const fetchSpecificUserId = async (userId, eventId) => {
         Event_ID: eventId,
       },
     });
+    // console.log(response.data)
     return response.data;
   } catch (error) {
     // console.error('Error fetching events:', error);
     throw error;
+  }
+};
+
+
+export const fetchScheduleForUser = async (eventId, userId) => {
+  try {
+    const resp = await axios.get(
+      `${API_BASE_URL}/User/getSchedule.php`,
+      {
+        params: { Event_ID: eventId, User_ID: userId }
+      }
+    );
+    if (resp.data.Status) return resp.data.Data;
+    throw new Error(resp.data.Message);
+  } catch (err) {
+    console.error('Error fetching schedule (user):', err);
+    throw err;
   }
 };

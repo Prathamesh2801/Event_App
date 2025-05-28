@@ -16,14 +16,32 @@
       "supportsTablet": true
     },
     "android": {
+      "googleServicesFile": "./google-services.json",
       "adaptiveIcon": {
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "edgeToEdgeEnabled": true
+      "edgeToEdgeEnabled": true,
+      "package": "com.pratham2801.eventapp"
     },
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-video",
+      "expo-font"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "eff3bf5f-2a0c-4b50-9001-dbe849d91ebd"
+      }
+    },
+    "owner": "pratham2801",
+    "runtimeVersion": {
+      "policy": "appVersion"
+    },
+    "updates": {
+      "url": "https://u.expo.dev/eff3bf5f-2a0c-4b50-9001-dbe849d91ebd"
     }
   }
 }

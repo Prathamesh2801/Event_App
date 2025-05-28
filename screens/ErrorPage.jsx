@@ -1,5 +1,5 @@
 import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
-
+import { Ionicons } from "@expo/vector-icons";
 export default function ErrorPage({ route, navigation }) {
   const { message, status, action = false } = route.params;
 
@@ -9,6 +9,7 @@ export default function ErrorPage({ route, navigation }) {
   return (
     <View style={styles.container}>
       <View style={styles.content}>
+        <Ionicons name="construct-outline" size={64} color="gray" />
         <Text style={styles.status}>{status ?? "Error"}</Text>
         <Text style={styles.message}>{message}</Text>
 
