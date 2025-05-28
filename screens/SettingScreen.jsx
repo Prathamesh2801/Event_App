@@ -53,6 +53,13 @@ export default function SettingScreen({ navigation }) {
     // Handle navigation or actions based on setting
     console.log(`Pressed ${settingName}`);
     // You can add navigation logic here
+
+    if(settingName=== 'Polls'){
+      navigation.navigate('PollPage')
+    }
+    else if(settingName === 'Notifications'){
+      navigation.navigate('NotificationPage')
+    }
   };
 
   const handleLogout = async () => {

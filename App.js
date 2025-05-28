@@ -21,6 +21,8 @@ import messaging from "@react-native-firebase/messaging";
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
 import { initPushNotification } from "./helper/pushNotification";
+import NotificationScreen from "./screens/NotificationScreen";
+import PollScreen from "./screens/PollScreen";
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -116,6 +118,22 @@ function AppNavigation() {
           <Stack.Screen
             name="PersonalPage"
             component={PersonalInfoScreen}
+            options={{
+              headerShown: false,
+              contentStyle: { backgroundColor: "transparent" },
+            }}
+          />
+          <Stack.Screen
+            name="NotificationPage"
+            component={NotificationScreen}
+            options={{
+              headerShown: false,
+              contentStyle: { backgroundColor: "transparent" },
+            }}
+          />
+          <Stack.Screen
+            name="PollPage"
+            component={PollScreen}
             options={{
               headerShown: false,
               contentStyle: { backgroundColor: "transparent" },

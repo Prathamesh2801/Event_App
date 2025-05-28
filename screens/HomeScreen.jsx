@@ -17,7 +17,9 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import BackgroundVideoBanner from "../components/BackgroundVideoBanner";
 import { API_BASE_URL } from "../config";
 import LoadingScreen from "./LoadingScreen";
-import usePushNotification, { checkNotificationStatus } from "../helper/pushNotification";
+import usePushNotification, {
+  checkNotificationStatus,
+} from "../helper/pushNotification";
 
 export default function HomeScreen({ navigation }) {
   const [eventLogo, setEventLogo] = useState("");
@@ -53,21 +55,21 @@ export default function HomeScreen({ navigation }) {
 
   // Check notification status when screen focuses (less frequent)
   useEffect(() => {
-    const unsubscribe = navigation.addListener('focus', () => {
+    const unsubscribe = navigation.addListener("focus", () => {
       // Only check notification status occasionally to avoid spam
       const checkNotifications = async () => {
-        const lastCheck = await AsyncStorage.getItem('last_notification_check');
+        const lastCheck = await AsyncStorage.getItem("last_notification_check");
         const now = Date.now();
-        
+
         // Only check every 24 hours or on first visit
-        if (!lastCheck || (now - parseInt(lastCheck)) > 24 * 60 * 60 * 1000) {
+        if (!lastCheck || now - parseInt(lastCheck) > 24 * 60 * 60 * 1000) {
           setTimeout(() => {
             checkNotificationStatus();
-            AsyncStorage.setItem('last_notification_check', now.toString());
+            AsyncStorage.setItem("last_notification_check", now.toString());
           }, 3000); // Delay to avoid overwhelming the user
         }
       };
-      
+
       checkNotifications();
     });
 
@@ -99,6 +101,7 @@ export default function HomeScreen({ navigation }) {
   // Handle notification settings tap
   const handleNotificationSettings = async () => {
     await checkNotificationStatus();
+    navigation.navigate("NotificationPage");
   };
 
   // Show loading screen until everything is ready
@@ -132,7 +135,7 @@ export default function HomeScreen({ navigation }) {
 
             <TouchableOpacity
               style={[styles.menuCard, { backgroundColor: "#c2eee0" }]}
-              onPress={() => navigation.replace("PersonalPage")}
+              onPress={() => navigation.navigate("PersonalPage")}
             >
               <View
                 style={[styles.iconContainer, { backgroundColor: "#D7F9EB" }]}
@@ -156,7 +159,7 @@ export default function HomeScreen({ navigation }) {
 
             <TouchableOpacity
               style={[styles.menuCard, { backgroundColor: "#ccc7d8eb" }]}
-              onPress={() => navigation.replace("QrPage")}
+              onPress={() => navigation.navigate("QrPage")}
             >
               <View
                 style={[styles.iconContainer, { backgroundColor: "#E9E1FD" }]}
@@ -177,7 +180,9 @@ export default function HomeScreen({ navigation }) {
             <View style={styles.sectionContainer}>
               <View style={styles.sectionHeader}>
                 <Text style={styles.sectionTitle}>Latest Updates</Text>
-                <TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => navigation.navigate("NotificationPage")}
+                >
                   <Text style={styles.seeAllText}>See All</Text>
                 </TouchableOpacity>
               </View>
@@ -195,7 +200,9 @@ export default function HomeScreen({ navigation }) {
             <View style={styles.sectionContainer}>
               <View style={styles.sectionHeader}>
                 <Text style={styles.sectionTitle}>Upcoming Event</Text>
-                <TouchableOpacity>
+                <TouchableOpacity
+                  onPress={() => navigation.navigate("Schedule")}
+                >
                   <Text style={styles.seeAllText}>See All</Text>
                 </TouchableOpacity>
               </View>

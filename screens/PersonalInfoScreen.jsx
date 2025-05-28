@@ -63,7 +63,7 @@ export default function PersonalInfoScreen({ navigation }) {
       <SafeAreaView style={styles.wrapper}>
         <TouchableOpacity
           style={styles.fixedBackButton}
-          onPress={() => navigation.replace("MyTabs")}
+          onPress={() => navigation.goBack()}
         >
           <Ionicons name="chevron-back" size={24} color="#FFFFFF" />
         </TouchableOpacity>
