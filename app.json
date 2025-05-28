@@ -21,16 +21,19 @@
         "foregroundImage": "./assets/adaptive-icon.png",
         "backgroundColor": "#ffffff"
       },
+      "permissions": [
+        "android.permission.RECEIVE_BOOT_COMPLETED",
+        "android.permission.VIBRATE",
+        "android.permission.WAKE_LOCK",
+        "com.google.android.c2dm.permission.RECEIVE"
+      ],
       "edgeToEdgeEnabled": true,
       "package": "com.pratham2801.eventapp"
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
-    "plugins": [
-      "expo-video",
-      "expo-font"
-    ],
+    "plugins": ["expo-video", "expo-font"],
     "extra": {
       "eas": {
         "projectId": "eff3bf5f-2a0c-4b50-9001-dbe849d91ebd"
