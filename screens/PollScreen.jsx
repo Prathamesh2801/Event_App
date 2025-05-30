@@ -1,10 +1,10 @@
-import { 
-  View, 
-  TouchableOpacity, 
-  StyleSheet, 
-  Text, 
+import {
+  View,
+  TouchableOpacity,
+  StyleSheet,
+  Text,
   ScrollView,
-  Alert 
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import BackgroundVideoBanner from "../components/BackgroundVideoBanner";
@@ -12,54 +12,73 @@ import { BlurView } from "expo-blur";
 import { Ionicons } from "@expo/vector-icons";
 import LoadingScreen from "./LoadingScreen";
 import { useEffect, useState } from "react";
+import { fetchUserPollData, submitPoll } from "../constants/api/polApi";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export default function PollScreen({ navigation }) {
   const [videoLoaded, setVideoLoaded] = useState(false);
   const [selectedAnswers, setSelectedAnswers] = useState({});
 
-  // Dummy poll data
-  const [livePolls, setLivePolls] = useState([
-    {
-      id: 1,
-      question: "What's your biggest challenge in industry/topic?",
-      isActive: true,
-      options: [
-        { id: 'a', text: 'Lack of time', votes: 0, percentage: 0 },
-        { id: 'b', text: 'Tools/tech', votes: 0, percentage: 0 },
-        { id: 'c', text: 'Strategy/clarity', votes: 0, percentage: 0 },
-        { id: 'd', text: 'Collaboration', votes: 0, percentage: 0 }
-      ],
-      totalVotes: 0
-    },
-    {
-      id: 2,
-      question: "Was this session valuable to you?",
-      isActive: true,
-      status: "ACTIVE",
-      options: [
-        { id: 'a', text: 'Yes', votes: 0, percentage: 0 },
-        { id: 'b', text: 'Somewhat', votes: 0, percentage: 0 },
-        { id: 'c', text: 'Not really', votes: 0, percentage: 0 }
-      ],
-      totalVotes: 0
-    }
-  ]);
+  const [livePolls, setLivePolls] = useState([]);
 
-  const [pastPolls, setPastPolls] = useState([
-    {
-      id: 3,
-      question: "Would you attend this event again next year?",
-      isActive: false,
-      status: "CLOSED",
-      options: [
-        { id: 'a', text: 'Yes', votes: 45, percentage: 65 },
-        { id: 'b', text: 'Somewhat', votes: 18, percentage: 26 },
-        { id: 'c', text: 'Not really', votes: 6, percentage: 9 }
-      ],
-      totalVotes: 69
-    }
-  ]);
+  const [pastPolls, setPastPolls] = useState([]);
 
+  async function getPollData() {
+    const eventId = await AsyncStorage.getItem("eventId");
+    const userId = await AsyncStorage.getItem("userId");
+    const resp = await fetchUserPollData(eventId, userId);
+    console.log("Raw Poll API Response:", JSON.stringify(resp, null, 2));
+
+    if (resp?.Status) {
+      const live = [];
+      const past = [];
+
+      resp.Data.forEach((poll) => {
+        // Filter out options with empty text before mapping
+        const mappedOptions = poll.Options.filter(
+          (opt) => opt.text && opt.text.trim() !== ""
+        ) // Filter empty options
+          .map((opt) => ({
+            id: opt.id,
+            text: opt.text,
+            percentage: opt.percentage || 0,
+          }));
+
+        const totalVotes = poll.Options.reduce(
+          (acc, opt) => acc + (opt.count || 0),
+          0
+        );
+
+        const formattedPoll = {
+          id: poll.Poll_ID,
+          question: poll.Question,
+          options: mappedOptions,
+          totalVotes,
+          isActive: poll.Live,
+          hasAnswered: poll.Has_Answered,
+          userSelected: poll.User_Selected_Option || null,
+          status: poll.Live ? "ACTIVE" : "CLOSED",
+        };
+
+        if (poll.Has_Answered) {
+          past.push(formattedPoll);
+          setSelectedAnswers((prev) => ({
+            ...prev,
+            [poll.Poll_ID]: poll.User_Selected_Option,
+          }));
+        } else {
+          live.push(formattedPoll);
+        }
+      });
+
+      setLivePolls(live);
+      setPastPolls(past);
+    }
+  }
+
+  useEffect(() => {
+    getPollData();
+  }, []);
   const isLoading = !videoLoaded;
 
   // Callback function to handle when video is loaded
@@ -67,49 +86,30 @@ export default function PollScreen({ navigation }) {
     setVideoLoaded(true);
   };
 
-  const handleVote = (pollId, optionId) => {
-    // Check if user already voted for this poll
+  const handleVote = async (pollId, optionId) => {
     if (selectedAnswers[pollId]) {
       Alert.alert("Already Voted", "You have already voted for this poll.");
       return;
     }
 
-    // Update the selected answers
-    setSelectedAnswers(prev => ({
-      ...prev,
-      [pollId]: optionId
-    }));
+    try {
+      const eventId = await AsyncStorage.getItem("eventId");
+      const userId = await AsyncStorage.getItem("userId");
 
-    // Update the poll data with the vote
-    setLivePolls(prevPolls => 
-      prevPolls.map(poll => {
-        if (poll.id === pollId) {
-          const updatedOptions = poll.options.map(option => {
-            if (option.id === optionId) {
-              return { ...option, votes: option.votes + 1 };
-            }
-            return option;
-          });
+      await submitPoll(eventId, pollId, userId, optionId);
 
-          const newTotalVotes = poll.totalVotes + 1;
-          
-          // Recalculate percentages
-          const optionsWithPercentages = updatedOptions.map(option => ({
-            ...option,
-            percentage: newTotalVotes > 0 ? Math.round((option.votes / newTotalVotes) * 100) : 0
-          }));
+      setSelectedAnswers((prev) => ({
+        ...prev,
+        [pollId]: optionId,
+      }));
 
-          return {
-            ...poll,
-            options: optionsWithPercentages,
-            totalVotes: newTotalVotes
-          };
-        }
-        return poll;
-      })
-    );
+      // Optionally, re-fetch poll data to reflect updated percentages
+      getPollData();
 
-    Alert.alert("Vote Submitted", "Thank you for your vote!");
+      Alert.alert("Vote Submitted", "Thank you for your vote!");
+    } catch (err) {
+      Alert.alert("Error", "Failed to submit your vote.");
+    }
   };
 
   const renderPollOption = (option, pollId, isActive, hasVoted) => (
@@ -117,33 +117,45 @@ export default function PollScreen({ navigation }) {
       key={option.id}
       style={[
         styles.pollOption,
-        hasVoted && selectedAnswers[pollId] === option.id && styles.selectedOption,
-        !isActive && styles.closedOption
+        hasVoted &&
+          selectedAnswers[pollId] === option.id &&
+          styles.selectedOption,
+        !isActive && styles.closedOption,
       ]}
       onPress={() => isActive && handleVote(pollId, option.id)}
       disabled={!isActive || hasVoted}
     >
       <View style={styles.optionContent}>
-        <Text style={[
-          styles.optionText,
-          hasVoted && selectedAnswers[pollId] === option.id && styles.selectedOptionText
-        ]}>
+        <Text
+          style={[
+            styles.optionText,
+            hasVoted &&
+              selectedAnswers[pollId] === option.id &&
+              styles.selectedOptionText,
+          ]}
+        >
           {option.text}
         </Text>
-        <Text style={[
-          styles.percentageText,
-          hasVoted && selectedAnswers[pollId] === option.id && styles.selectedPercentageText
-        ]}>
+        <Text
+          style={[
+            styles.percentageText,
+            hasVoted &&
+              selectedAnswers[pollId] === option.id &&
+              styles.selectedPercentageText,
+          ]}
+        >
           {option.percentage}%
         </Text>
       </View>
       {(hasVoted || !isActive) && (
-        <View 
+        <View
           style={[
             styles.progressBar,
             { width: `${option.percentage}%` },
-            hasVoted && selectedAnswers[pollId] === option.id && styles.selectedProgressBar
-          ]} 
+            hasVoted &&
+              selectedAnswers[pollId] === option.id &&
+              styles.selectedProgressBar,
+          ]}
         />
       )}
     </TouchableOpacity>
@@ -151,31 +163,33 @@ export default function PollScreen({ navigation }) {
 
   const renderPoll = (poll, isLive = true) => {
     const hasVoted = selectedAnswers[poll.id] !== undefined;
-    
+
     return (
       <View key={poll.id} style={styles.pollCard}>
         <View style={styles.pollHeader}>
           <Text style={styles.pollQuestion}>{poll.question}</Text>
           {poll.status && (
-            <View style={[
-              styles.statusBadge,
-              poll.status === 'ACTIVE' ? styles.activeBadge : styles.closedBadge
-            ]}>
+            <View
+              style={[
+                styles.statusBadge,
+                poll.status === "ACTIVE"
+                  ? styles.activeBadge
+                  : styles.closedBadge,
+              ]}
+            >
               <Text style={styles.statusText}>{poll.status}</Text>
             </View>
           )}
         </View>
-        
+
         <View style={styles.optionsContainer}>
-          {poll.options.map(option => 
+          {poll.options.map((option) =>
             renderPollOption(option, poll.id, poll.isActive, hasVoted)
           )}
         </View>
 
         {poll.totalVotes > 0 && (
-          <Text style={styles.totalVotes}>
-            Total votes: {poll.totalVotes}
-          </Text>
+          <Text style={styles.totalVotes}>Total votes: {poll.totalVotes}</Text>
         )}
       </View>
     );
@@ -208,7 +222,7 @@ export default function PollScreen({ navigation }) {
         </View>
 
         <BlurView intensity={30} tint="light" style={styles.container}>
-          <ScrollView 
+          <ScrollView
             style={styles.content}
             showsVerticalScrollIndicator={false}
             contentContainerStyle={styles.scrollContent}
@@ -216,7 +230,7 @@ export default function PollScreen({ navigation }) {
             {/* Live Polls Section */}
             {livePolls.length > 0 && (
               <View style={styles.section}>
-                {livePolls.map(poll => renderPoll(poll, true))}
+                {livePolls.map((poll) => renderPoll(poll, true))}
               </View>
             )}
 
@@ -224,16 +238,22 @@ export default function PollScreen({ navigation }) {
             {pastPolls.length > 0 && (
               <View style={styles.section}>
                 <Text style={styles.sectionTitle}>Past Polls</Text>
-                {pastPolls.map(poll => renderPoll(poll, false))}
+                {pastPolls.map((poll) => renderPoll(poll, false))}
               </View>
             )}
 
             {/* Empty State */}
             {livePolls.length === 0 && pastPolls.length === 0 && (
               <View style={styles.emptyContainer}>
-                <Ionicons name="bar-chart" size={64} color="rgba(255,255,255,0.6)" />
+                <Ionicons
+                  name="bar-chart"
+                  size={64}
+                  color="rgba(255,255,255,0.6)"
+                />
                 <Text style={styles.emptyText}>No polls available</Text>
-                <Text style={styles.emptySubtext}>Check back later for live polls and surveys</Text>
+                <Text style={styles.emptySubtext}>
+                  Check back later for live polls and surveys
+                </Text>
               </View>
             )}
           </ScrollView>
@@ -259,9 +279,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingVertical: 16,
     paddingHorizontal: 4,
   },
@@ -272,9 +292,9 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 20,
-    fontWeight: '600',
-    color: '#FFFFFF',
-    textAlign: 'center',
+    fontWeight: "600",
+    color: "#FFFFFF",
+    textAlign: "center",
   },
   placeholder: {
     width: 40,
@@ -298,8 +318,8 @@ const styles = StyleSheet.create({
   },
   sectionTitle: {
     fontSize: 18,
-    fontWeight: '600',
-    color: '#FFFFFF',
+    fontWeight: "600",
+    color: "#FFFFFF",
     marginBottom: 16,
   },
   pollCard: {
@@ -311,15 +331,15 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255,255,255,0.2)",
   },
   pollHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
     marginBottom: 16,
   },
   pollQuestion: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#FFFFFF',
+    fontWeight: "600",
+    color: "#FFFFFF",
     flex: 1,
     marginRight: 8,
   },
@@ -328,18 +348,18 @@ const styles = StyleSheet.create({
     paddingVertical: 4,
     borderRadius: 12,
     minWidth: 60,
-    alignItems: 'center',
+    alignItems: "center",
   },
   activeBadge: {
-    backgroundColor: '#10B981',
+    backgroundColor: "#10B981",
   },
   closedBadge: {
-    backgroundColor: '#6B7280',
+    backgroundColor: "#6B7280",
   },
   statusText: {
     fontSize: 10,
-    fontWeight: '600',
-    color: '#FFFFFF',
+    fontWeight: "600",
+    color: "#FFFFFF",
   },
   optionsContainer: {
     marginBottom: 12,
@@ -351,8 +371,8 @@ const styles = StyleSheet.create({
     marginBottom: 8,
     borderWidth: 1,
     borderColor: "rgba(255,255,255,0.3)",
-    position: 'relative',
-    overflow: 'hidden',
+    position: "relative",
+    overflow: "hidden",
   },
   selectedOption: {
     backgroundColor: "rgba(59, 130, 246, 0.3)",
@@ -362,62 +382,62 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255,255,255,0.15)",
   },
   optionContent: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
     zIndex: 2,
   },
   optionText: {
     fontSize: 14,
-    color: '#FFFFFF',
-    fontWeight: '500',
+    color: "#FFFFFF",
+    fontWeight: "500",
   },
   selectedOptionText: {
-    color: '#FFFFFF',
-    fontWeight: '600',
+    color: "#FFFFFF",
+    fontWeight: "600",
   },
   percentageText: {
     fontSize: 14,
-    color: 'rgba(255,255,255,0.8)',
-    fontWeight: '600',
+    color: "rgba(255,255,255,0.8)",
+    fontWeight: "600",
   },
   selectedPercentageText: {
-    color: '#FFFFFF',
+    color: "#FFFFFF",
   },
   progressBar: {
-    position: 'absolute',
+    position: "absolute",
     top: 0,
     left: 0,
     bottom: 0,
-    backgroundColor: 'rgba(255,255,255,0.2)',
+    backgroundColor: "rgba(255,255,255,0.2)",
     zIndex: 1,
   },
   selectedProgressBar: {
-    backgroundColor: 'rgba(59, 130, 246, 0.4)',
+    backgroundColor: "rgba(59, 130, 246, 0.4)",
   },
   totalVotes: {
     fontSize: 12,
-    color: 'rgba(255,255,255,0.7)',
-    textAlign: 'right',
+    color: "rgba(255,255,255,0.7)",
+    textAlign: "right",
   },
   emptyContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     paddingHorizontal: 32,
     paddingTop: 100,
   },
   emptyText: {
     fontSize: 18,
-    fontWeight: '600',
-    color: 'rgba(255,255,255,0.8)',
+    fontWeight: "600",
+    color: "rgba(255,255,255,0.8)",
     marginTop: 16,
     marginBottom: 8,
   },
   emptySubtext: {
     fontSize: 14,
-    color: 'rgba(255,255,255,0.6)',
-    textAlign: 'center',
+    color: "rgba(255,255,255,0.6)",
+    textAlign: "center",
     lineHeight: 20,
   },
 });

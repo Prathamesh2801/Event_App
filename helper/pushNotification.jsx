@@ -1,8 +1,14 @@
 // Enhanced pushNotification.jsx
 import { useEffect } from "react";
-import messaging from "@react-native-firebase/messaging";
 import { Alert, Platform, Linking } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { initWebPushNotification } from './webPushNotification';
+
+// Only import native Firebase messaging if not on web
+let messaging;
+if (Platform.OS !== 'web') {
+  messaging = require('@react-native-firebase/messaging').default;
+}
 
 const TOPIC_STORAGE_KEY = "subscribed_topics";
 const NOTIFICATION_PERMISSION_ASKED = "notification_permission_asked";
@@ -73,7 +79,12 @@ const showAndroidOptimizationModal = () => {
 
 export async function initPushNotification() {
   try {
-    // Check if we've already asked for permission
+    // Handle web platform separately
+    if (Platform.OS === 'web') {
+      return await initWebPushNotification();
+    }
+
+    // Native platform handling below
     const hasAskedBefore = await AsyncStorage.getItem(NOTIFICATION_PERMISSION_ASKED);
     
     if (!hasAskedBefore) {
@@ -210,50 +221,51 @@ const subscribeToTopic = async (topicName) => {
 export default function usePushNotification() {
   useEffect(() => {
     // Initialize push notifications when component mounts
-    initPushNotification();
-
-    // Listen to foreground messages
-    const unsubscribeOnMessage = messaging().onMessage(
-      async (remoteMessage) => {
-        console.log("📬 Foreground message:", remoteMessage);
-        
-        // Show a more user-friendly alert
-        if (remoteMessage.notification) {
-          Alert.alert(
-            remoteMessage.notification.title || "New Notification",
-            remoteMessage.notification.body || "You have a new message",
-            [{ text: "OK" }]
-          );
-        }
-      }
-    );
-
-    // App opened from background
-    messaging().onNotificationOpenedApp((remoteMessage) => {
-      console.log("📖 Opened from background:", remoteMessage?.notification);
-      // Handle navigation based on notification data if needed
-      if (remoteMessage?.data?.screen) {
-        // Navigate to specific screen
-        console.log("Navigate to:", remoteMessage.data.screen);
-      }
-    });
-
-    // App opened from quit state
-    messaging()
-      .getInitialNotification()
-      .then((remoteMessage) => {
-        if (remoteMessage) {
-          console.log("🛌 Opened from quit state:", remoteMessage?.notification);
-          // Handle navigation based on notification data if needed
-          if (remoteMessage?.data?.screen) {
-            console.log("Navigate to:", remoteMessage.data.screen);
+    initPushNotification();    // Only set up native messaging listeners if not on web
+    if (Platform.OS !== 'web') {
+      // Listen to foreground messages
+      const unsubscribeOnMessage = messaging().onMessage(
+        async (remoteMessage) => {
+          console.log("📬 Foreground message:", remoteMessage);
+          
+          // Show a more user-friendly alert
+          if (remoteMessage.notification) {
+            Alert.alert(
+              remoteMessage.notification.title || "New Notification",
+              remoteMessage.notification.body || "You have a new message",
+              [{ text: "OK" }]
+            );
           }
+        }
+      );
+
+      // App opened from background
+      messaging().onNotificationOpenedApp((remoteMessage) => {
+        console.log("📖 Opened from background:", remoteMessage?.notification);
+        // Handle navigation based on notification data if needed
+        if (remoteMessage?.data?.screen) {
+          // Navigate to specific screen
+          console.log("Navigate to:", remoteMessage.data.screen);
         }
       });
 
-    return () => {
-      unsubscribeOnMessage();
-    };
+      // App opened from quit state
+      messaging()
+        .getInitialNotification()
+        .then((remoteMessage) => {
+          if (remoteMessage) {
+            console.log("🛌 Opened from quit state:", remoteMessage?.notification);
+            // Handle navigation based on notification data if needed
+            if (remoteMessage?.data?.screen) {
+              console.log("Navigate to:", remoteMessage.data.screen);
+            }
+          }
+        });
+
+      return () => {
+        unsubscribeOnMessage();
+      };
+    }
   }, []);
 
   return null;

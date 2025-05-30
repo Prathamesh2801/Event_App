@@ -17,30 +17,133 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import BackgroundVideoBanner from "../components/BackgroundVideoBanner";
 import { API_BASE_URL } from "../config";
 import LoadingScreen from "./LoadingScreen";
+import { Platform } from "react-native";
+import { useEffect as useNotificationEffect } from "react";
+import { initializeFirebaseMessaging } from "../helper/notifications";
 import usePushNotification, {
   checkNotificationStatus,
 } from "../helper/pushNotification";
+import { fetchUCEventsPN } from "../constants/api/HomeScreenAPI";
 
 export default function HomeScreen({ navigation }) {
   const [eventLogo, setEventLogo] = useState("");
   const [dataLoading, setDataLoading] = useState(true);
   const [fontsLoaded, setFontsLoaded] = useState(false);
   const [videoLoaded, setVideoLoaded] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+  const [schedules, setSchedules] = useState([]);
+  const [apiError, setApiError] = useState(false);
 
   // Combined loading state - show loading screen until both video and data are ready
   const isLoading = dataLoading || !videoLoaded || !fontsLoaded;
 
+  // Format time from 24-hour to 12-hour format
+  const formatTime = (timeString) => {
+    try {
+      const [hours, minutes] = timeString.split(':');
+      const hour12 = parseInt(hours) % 12 || 12;
+      const ampm = parseInt(hours) >= 12 ? 'PM' : 'AM';
+      return `${hour12}:${minutes} ${ampm}`;
+    } catch (error) {
+      return timeString; // Return original if formatting fails
+    }
+  };
+
+  // Format date for display
+  const formatDate = (dateString) => {
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleDateString('en-US', {
+        month: 'short',
+        day: 'numeric'
+      });
+    } catch (error) {
+      return dateString;
+    }
+  };
+
+  // Calculate time ago for notifications
+  const getTimeAgo = (createdAt) => {
+    try {
+      const now = new Date();
+      const created = new Date(createdAt);
+      const diffInMinutes = Math.floor((now - created) / (1000 * 60));
+      
+      if (diffInMinutes < 1) return 'Just now';
+      if (diffInMinutes < 60) return `${diffInMinutes} min ago`;
+      
+      const diffInHours = Math.floor(diffInMinutes / 60);
+      if (diffInHours < 24) return `${diffInHours} hour${diffInHours > 1 ? 's' : ''} ago`;
+      
+      const diffInDays = Math.floor(diffInHours / 24);
+      return `${diffInDays} day${diffInDays > 1 ? 's' : ''} ago`;
+    } catch (error) {
+      return 'Recently';
+    }
+  };
+
+  // Check if schedule is upcoming (today or future)
+  const isUpcomingSchedule = (startDate, startTime) => {
+    try {
+      const now = new Date();
+      const scheduleDateTime = new Date(`${startDate} ${startTime}`);
+      return scheduleDateTime >= now;
+    } catch (error) {
+      return true; // Show by default if parsing fails
+    }
+  };
+
+  // Get next upcoming schedule
+  const getNextUpcomingSchedule = () => {
+    const upcoming = schedules
+      .filter(schedule => isUpcomingSchedule(schedule.Start_Date, schedule.Start_Time))
+      .sort((a, b) => {
+        const dateTimeA = new Date(`${a.Start_Date} ${a.Start_Time}`);
+        const dateTimeB = new Date(`${b.Start_Date} ${b.Start_Time}`);
+        return dateTimeA - dateTimeB;
+      });
+    
+    return upcoming.length > 0 ? upcoming[0] : null;
+  };
+
   async function fetchLocalDetails() {
     try {
       setDataLoading(true);
+      setApiError(false);
+      
       const eventId = await AsyncStorage.getItem("eventId");
       const eventlogo = await AsyncStorage.getItem("eventLogo");
       const userId = await AsyncStorage.getItem("userId");
+      
       console.log("fetched event ID from local Storage : ", eventId);
       console.log("fetched user ID from local Storage : ", userId);
+      
       setEventLogo(`${API_BASE_URL}/uploads/event_logos/${eventlogo}`);
+
+      // Fetch data from API
+      if (eventId && userId) {
+        try {
+          const apiResponse = await fetchUCEventsPN(eventId, userId);
+          console.log("API Response:", apiResponse);
+          
+          if (apiResponse.Status) {
+            setNotifications(apiResponse.Data.Notifications || []);
+            setSchedules(apiResponse.Data.Schedules || []);
+          } else {
+            setApiError(true);
+            console.error("API returned error status");
+          }
+        } catch (apiError) {
+          console.error("Error fetching API data:", apiError);
+          setApiError(true);
+          // Set empty arrays as fallback
+          setNotifications([]);
+          setSchedules([]);
+        }
+      }
     } catch (error) {
       console.error("Error fetching event settings:", error);
+      setApiError(true);
     } finally {
       setDataLoading(false);
     }
@@ -49,13 +152,33 @@ export default function HomeScreen({ navigation }) {
   useLayoutEffect(() => {
     fetchLocalDetails();
   }, []);
+  // Initialize Firebase Messaging and push notifications
+  useNotificationEffect(() => {
+    const initMessaging = async () => {
+      try {
+        const messaging = await initializeFirebaseMessaging();
+        if (messaging) {
+          console.log('Firebase Messaging initialized successfully');
+        }
+      } catch (error) {
+        console.error('Error initializing Firebase Messaging:', error);
+      }
+    };
 
-  // Initialize push notifications
-  usePushNotification();
+    initMessaging();
+  }, []);
+
+  // Initialize push notifications for native platform
+  if (Platform.OS !== 'web') {
+    usePushNotification();
+  }
 
   // Check notification status when screen focuses (less frequent)
   useEffect(() => {
     const unsubscribe = navigation.addListener("focus", () => {
+      // Refresh data when screen comes into focus
+      fetchLocalDetails();
+      
       // Only check notification status occasionally to avoid spam
       const checkNotifications = async () => {
         const lastCheck = await AsyncStorage.getItem("last_notification_check");
@@ -113,6 +236,8 @@ export default function HomeScreen({ navigation }) {
       </View>
     );
   }
+
+  const nextUpcomingSchedule = getNextUpcomingSchedule();
 
   return (
     <View style={styles.rootInnerContainer}>
@@ -173,60 +298,114 @@ export default function HomeScreen({ navigation }) {
               <Text style={styles.menuCardText}>QR Code</Text>
             </TouchableOpacity>
           </View>
+          
           <ScrollView
             style={styles.scrollView}
             contentContainerStyle={styles.scrollContent}
           >
-            <View style={styles.sectionContainer}>
-              <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>Latest Updates</Text>
-                <TouchableOpacity
-                  onPress={() => navigation.navigate("NotificationPage")}
-                >
-                  <Text style={styles.seeAllText}>See All</Text>
-                </TouchableOpacity>
-              </View>
-
-              <View style={styles.updateCard}>
-                <Text style={styles.updateTitle}>Wi-Fi Password Updated</Text>
-                <Text style={styles.updateDescription}>
-                  The conference Wi-Fi password has been updated to
-                  "TechConf2024"
-                </Text>
-                <Text style={styles.timeAgo}>5 min ago</Text>
-              </View>
-            </View>
-
-            <View style={styles.sectionContainer}>
-              <View style={styles.sectionHeader}>
-                <Text style={styles.sectionTitle}>Upcoming Event</Text>
-                <TouchableOpacity
-                  onPress={() => navigation.navigate("Schedule")}
-                >
-                  <Text style={styles.seeAllText}>See All</Text>
-                </TouchableOpacity>
-              </View>
-
-              <View style={styles.eventCard}>
-                <View style={styles.eventTimeContainer}>
-                  <Text style={styles.eventTime}>09:00 AM</Text>
+            {/* Latest Updates Section */}
+            {notifications.length > 0 && (
+              <View style={styles.sectionContainer}>
+                <View style={styles.sectionHeader}>
+                  <Text style={styles.sectionTitle}>Latest Updates</Text>
+                  <TouchableOpacity
+                    onPress={() => navigation.navigate("NotificationPage")}
+                  >
+                    <Text style={styles.seeAllText}>See All</Text>
+                  </TouchableOpacity>
                 </View>
-                <View style={styles.eventInfoContainer}>
-                  <Text style={styles.eventTitle}>Opening Keynote</Text>
-                  <View style={styles.locationContainer}>
-                    <Ionicons
-                      name="location-outline"
-                      size={14}
-                      color="#64748B"
-                    />
-                    <Text style={styles.locationText}>Main Hall</Text>
+
+                {notifications.slice(0, 3).map((notification) => (
+                  <View key={notification.Notification_ID} style={styles.updateCard}>
+                    <Text style={styles.updateTitle}>{notification.Title}</Text>
+                    <Text style={styles.updateDescription}>
+                      {notification.Message}
+                    </Text>
+                    <Text style={styles.timeAgo}>
+                      {getTimeAgo(notification.Created_AT)}
+                    </Text>
                   </View>
+                ))}
+              </View>
+            )}
+
+            {/* Upcoming Event Section */}
+            {nextUpcomingSchedule && (
+              <View style={styles.sectionContainer}>
+                <View style={styles.sectionHeader}>
+                  <Text style={styles.sectionTitle}>Upcoming Event</Text>
+                  <TouchableOpacity
+                    onPress={() => navigation.navigate("Schedule")}
+                  >
+                    <Text style={styles.seeAllText}>See All</Text>
+                  </TouchableOpacity>
                 </View>
-                <TouchableOpacity style={styles.bookmarkButton}>
-                  <Ionicons name="bookmark-outline" size={20} color="#64748B" />
+
+                <View style={styles.eventCard}>
+                  <View style={styles.eventTimeContainer}>
+                    <Text style={styles.eventTime}>
+                      {formatTime(nextUpcomingSchedule.Start_Time)}
+                    </Text>
+                    <Text style={styles.eventDate}>
+                      {formatDate(nextUpcomingSchedule.Start_Date)}
+                    </Text>
+                  </View>
+                  <View style={styles.eventInfoContainer}>
+                    <Text style={styles.eventTitle}>{nextUpcomingSchedule.Title}</Text>
+                    <View style={styles.locationContainer}>
+                      <Ionicons
+                        name="location-outline"
+                        size={14}
+                        color="#64748B"
+                      />
+                      <Text style={styles.locationText}>
+                        {nextUpcomingSchedule.Location || 'Location TBD'}
+                      </Text>
+                    </View>
+                    {nextUpcomingSchedule.Speaker && (
+                      <View style={styles.speakerContainer}>
+                        <Ionicons
+                          name="person-outline"
+                          size={14}
+                          color="#64748B"
+                        />
+                        <Text style={styles.speakerText}>
+                          {nextUpcomingSchedule.Speaker}
+                        </Text>
+                      </View>
+                    )}
+                  </View>
+                 
+                </View>
+              </View>
+            )}
+
+            {/* No Data Messages */}
+            {notifications.length === 0 && schedules.length === 0 && !apiError && (
+              <View style={styles.noDataContainer}>
+                <Ionicons name="information-circle-outline" size={48} color="#9CA3AF" />
+                <Text style={styles.noDataTitle}>No Updates Available</Text>
+                <Text style={styles.noDataText}>
+                  Check back later for notifications and upcoming events.
+                </Text>
+              </View>
+            )}
+
+            {apiError && (
+              <View style={styles.errorContainer}>
+                <Ionicons name="alert-circle-outline" size={48} color="#EF4444" />
+                <Text style={styles.errorTitle}>Unable to Load Data</Text>
+                <Text style={styles.errorText}>
+                  Please check your connection and try again.
+                </Text>
+                <TouchableOpacity 
+                  style={styles.retryButton}
+                  onPress={fetchLocalDetails}
+                >
+                  <Text style={styles.retryButtonText}>Retry</Text>
                 </TouchableOpacity>
               </View>
-            </View>
+            )}
           </ScrollView>
         </BlurView>
       </SafeAreaView>
@@ -329,6 +508,7 @@ const styles = StyleSheet.create({
     backgroundColor: "rgba(255, 255, 255, 0.8)",
     borderRadius: 16,
     padding: 16,
+    marginBottom: 12,
   },
   updateTitle: {
     fontSize: 15,
@@ -354,31 +534,99 @@ const styles = StyleSheet.create({
   },
   eventTimeContainer: {
     marginRight: 12,
+    alignItems: "center",
   },
   eventTime: {
     fontSize: 14,
     fontWeight: "600",
     color: "#8B5CF6",
   },
+  eventDate: {
+    fontSize: 12,
+    color: "#64748B",
+    marginTop: 2,
+  },
   eventInfoContainer: {
     flex: 1,
   },
   eventTitle: {
     fontSize: 15,
-    fontWeight: "600",
+    fontWeight: "600",  
     color: "#1F2937",
     marginBottom: 4,
   },
   locationContainer: {
     flexDirection: "row",
     alignItems: "center",
+    marginBottom: 2,
   },
   locationText: {
     fontSize: 13,
     color: "#64748B",
     marginLeft: 4,
   },
+  speakerContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  speakerText: {
+    fontSize: 13,
+    color: "#64748B",
+    marginLeft: 4,
+  },
   bookmarkButton: {
     padding: 4,
+  },
+  noDataContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 32,
+    marginTop: 40,
+  },
+  noDataTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#FFFFFF",
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  noDataText: {
+    fontSize: 14,
+    color: "#E5E7EB",
+    textAlign: "center",
+    lineHeight: 20,
+  },
+  errorContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 32,
+    marginTop: 40,
+  },
+  errorTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#FFFFFF",
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  errorText: {
+    fontSize: 14,
+    color: "#E5E7EB",
+    textAlign: "center",
+    lineHeight: 20,
+    marginBottom: 16,
+  },
+  retryButton: {
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "rgba(255, 255, 255, 0.3)",
+  },
+  retryButtonText: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#FFFFFF",
   },
 });

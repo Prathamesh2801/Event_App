@@ -1,9 +1,11 @@
 //App.js
-import { StyleSheet, View } from "react-native";
+import { StyleSheet, View, Platform } from "react-native";
 import EventRegistrationScreen from "./screens/EventRegistrationScreen";
 import UserRegistrationScreen from "./screens/UserRegistrationScreen";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
+import { initializeFirebase, onMessageListener } from "./firebaseConfig";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
+import messaging from '@react-native-firebase/messaging';
 import { NavigationContainer } from "@react-navigation/native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import HomeScreen from "./screens/HomeScreen";
@@ -13,14 +15,15 @@ import { Ionicons } from "@expo/vector-icons";
 import ErrorPage from "./screens/ErrorPage";
 import Toast from "react-native-toast-message";
 import AnimatedTabBar from "./components/AnimatedTabBar";
-import BackgroundVideoBanner from "./components/BackgroundVideoBanner";
+
 import StartupScreen from "./screens/StartupScreen";
 import QrScreen from "./screens/QrScreen";
 import PersonalInfoScreen from "./screens/PersonalInfoScreen";
-import messaging from "@react-native-firebase/messaging";
+
 import { StatusBar } from "expo-status-bar";
 import { useEffect } from "react";
 import { initPushNotification } from "./helper/pushNotification";
+
 import NotificationScreen from "./screens/NotificationScreen";
 import PollScreen from "./screens/PollScreen";
 
@@ -155,12 +158,46 @@ function AppNavigation() {
 
 export default function App() {
   useEffect(() => {
-    initPushNotification();
-  }, []);
+    const initNotifications = async () => {
+      if (Platform.OS === "web") {
+        // Initialize Firebase for web
+        try {
+          const token = await initializeFirebase();
+          if (token) {
+            console.log("Web FCM token:", token);
+          }
 
-  messaging().setBackgroundMessageHandler(async (remoteMessage) => {
-    console.log("Handled in background:", remoteMessage?.notification);
-  });
+          // Handle foreground messages in web
+          onMessageListener()
+            .then((payload) => {
+              console.log("Received foreground message:", payload);
+            })
+            .catch((err) => console.log("Failed to receive message:", err));
+        } catch (error) {
+          console.error("Web notification error:", error);
+        }
+      } else {
+        try {
+          // Initialize push notifications for native platforms
+          await initPushNotification();
+
+          // Get messaging instance using getApp
+          if (messaging().isDeviceRegisteredForRemoteMessages) {
+            // Handle background messages in native platforms
+            messaging().setBackgroundMessageHandler(async (remoteMessage) => {
+              console.log("Handled in background:", remoteMessage?.notification);
+            });
+          } else {
+            await messaging().registerDeviceForRemoteMessages();
+          }
+        } catch (error) {
+          console.error("Native notification error:", error);
+        }
+      }
+    };
+
+    initNotifications();
+  }, []);
   return (
     <SafeAreaProvider>
       <StatusBar style="light" />

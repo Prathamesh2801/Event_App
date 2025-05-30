@@ -1,60 +1,44 @@
-import { 
-  View, 
-  TouchableOpacity, 
-  StyleSheet, 
-  Text, 
+import {
+  View,
+  TouchableOpacity,
+  StyleSheet,
+  Text,
   ScrollView,
-  FlatList 
+  FlatList,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import BackgroundVideoBanner from "../components/BackgroundVideoBanner";
 import { BlurView } from "expo-blur";
 import { Ionicons } from "@expo/vector-icons";
 import LoadingScreen from "./LoadingScreen";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
+import { fetchAllNotifications } from "../constants/api/Notification";
+import { useFocusEffect } from "@react-navigation/native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import dayjs from "dayjs";
+import relativeTime from "dayjs/plugin/relativeTime";
+
+dayjs.extend(relativeTime);
 
 export default function NotificationScreen({ navigation }) {
   const [videoLoaded, setVideoLoaded] = useState(false);
+  const [notifications, setNotifications] = useState([]);
 
-  // Dummy notification data
-  const [notifications, setNotifications] = useState([
-    {
-      id: 1,
-      title: "Wi-Fi Password Updated",
-      message: "The conference Wi-Fi password has been updated to 'TechConf2024'",
-      timeAgo: "5 min ago",
-      type: "info"
-    },
-    {
-      id: 2,
-      title: "Lunch Schedule Change",
-      message: "Lunch break has been extended by 30 minutes today",
-      timeAgo: "20 min ago",
-      type: "warning"
-    },
-    {
-      id: 3,
-      title: "New Workshop Added",
-      message: "A new workshop on 'Cloud Security' has been added to Room C at 3 PM",
-      timeAgo: "1 hour ago",
-      type: "success"
-    },
-    {
-      id: 4,
-      title: "Keynote Speaker Change",
-      message: "Due to unforeseen circumstances, the keynote speaker has been changed",
-      timeAgo: "2 hours ago",
-      type: "info"
-    },
-    {
-      id: 5,
-      title: "Networking Session",
-      message: "Join us for an exclusive networking session at the rooftop lounge",
-      timeAgo: "3 hours ago",
-      type: "success"
-    }
-  ]);
+  async function getAllNotifications() {
+    const eventId = await AsyncStorage.getItem("eventId");
+    const resp = await fetchAllNotifications(eventId);
+    console.log("Fetched Notifications:", resp);
+    setNotifications(resp);
+  }
 
+  useEffect(() => {
+    getAllNotifications();
+  }, []);
+  useFocusEffect(
+    useCallback(() => {
+      getAllNotifications();
+    }, [])
+  );
   const isLoading = !videoLoaded;
 
   // Callback function to handle when video is loaded
@@ -63,35 +47,39 @@ export default function NotificationScreen({ navigation }) {
   };
 
   const getNotificationIcon = (type) => {
-    switch (type) {
-      case 'warning':
-        return { name: 'warning', color: '#F59E0B' };
-      case 'success':
-        return { name: 'checkmark-circle', color: '#10B981' };
-      case 'info':
+    switch (type?.toLowerCase()) {
+      case "warning":
+        return { name: "warning", color: "#F59E0B" };
+      case "success":
+        return { name: "checkmark-circle", color: "#10B981" };
+      case "info":
+        return { name: "information-circle", color: "#3B82F6" };
+      case "error":
+        return { name: "close-circle", color: "#EF4444" };
       default:
-        return { name: 'information-circle', color: '#3B82F6' };
+        return { name: "alert-circle", color: "#9CA3AF" }; // neutral default
     }
   };
 
   const renderNotificationItem = ({ item }) => {
-    const iconData = getNotificationIcon(item.type);
-    
+    const iconData = getNotificationIcon(item.Type);
+    const timeAgo = dayjs(item.Created_AT).fromNow();
+
     return (
       <TouchableOpacity style={styles.notificationCard}>
         <View style={styles.cardHeader}>
           <View style={styles.iconTitleContainer}>
-            <Ionicons 
-              name={iconData.name} 
-              size={20} 
-              color={iconData.color} 
+            <Ionicons
+              name={iconData.name}
+              size={20}
+              color={iconData.color}
               style={styles.notificationIcon}
             />
-            <Text style={styles.notificationTitle}>{item.title}</Text>
+            <Text style={styles.notificationTitle}>{item.Title}</Text>
           </View>
-          <Text style={styles.timeAgo}>{item.timeAgo}</Text>
         </View>
-        <Text style={styles.notificationMessage}>{item.message}</Text>
+        <Text style={styles.notificationMessage}>{item.Message}</Text>
+        <Text style={styles.timeAgo}>{timeAgo}</Text>
       </TouchableOpacity>
     );
   };
@@ -128,15 +116,21 @@ export default function NotificationScreen({ navigation }) {
               <FlatList
                 data={notifications}
                 renderItem={renderNotificationItem}
-                keyExtractor={(item) => item.id.toString()}
+                keyExtractor={(item) => item.Notification_ID.toString()}
                 showsVerticalScrollIndicator={false}
                 contentContainerStyle={styles.listContainer}
               />
             ) : (
               <View style={styles.emptyContainer}>
-                <Ionicons name="notifications-off" size={64} color="rgba(255,255,255,0.6)" />
+                <Ionicons
+                  name="notifications-off"
+                  size={64}
+                  color="rgba(255,255,255,0.6)"
+                />
                 <Text style={styles.emptyText}>No notifications yet</Text>
-                <Text style={styles.emptySubtext}>We'll notify you when something important happens</Text>
+                <Text style={styles.emptySubtext}>
+                  We'll notify you when something important happens
+                </Text>
               </View>
             )}
           </View>
@@ -162,9 +156,9 @@ const styles = StyleSheet.create({
     paddingHorizontal: 16,
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingVertical: 16,
     paddingHorizontal: 4,
   },
@@ -175,9 +169,9 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 20,
-    fontWeight: '600',
-    color: '#FFFFFF',
-    textAlign: 'center',
+    fontWeight: "600",
+    color: "#FFFFFF",
+    textAlign: "center",
   },
   placeholder: {
     width: 40, // Same width as back button to center the title
@@ -205,14 +199,14 @@ const styles = StyleSheet.create({
     borderColor: "rgba(255,255,255,0.2)",
   },
   cardHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "flex-start",
     marginBottom: 8,
   },
   iconTitleContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     flex: 1,
   },
   notificationIcon: {
@@ -220,37 +214,39 @@ const styles = StyleSheet.create({
   },
   notificationTitle: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#FFFFFF',
+    fontWeight: "600",
+    color: "#FFFFFF",
     flex: 1,
   },
   timeAgo: {
     fontSize: 12,
-    color: 'rgba(255,255,255,0.7)',
-    marginLeft: 8,
+    color: "rgba(255,255,255,0.7)",
+    marginLeft:'70%'
+    
   },
   notificationMessage: {
     fontSize: 14,
-    color: 'rgba(255,255,255,0.9)',
+    color: "rgba(255,255,255,0.9)",
     lineHeight: 20,
+    marginBottom:10
   },
   emptyContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     paddingHorizontal: 32,
   },
   emptyText: {
     fontSize: 18,
-    fontWeight: '600',
-    color: 'rgba(255,255,255,0.8)',
+    fontWeight: "600",
+    color: "rgba(255,255,255,0.8)",
     marginTop: 16,
     marginBottom: 8,
   },
   emptySubtext: {
     fontSize: 14,
-    color: 'rgba(255,255,255,0.6)',
-    textAlign: 'center',
+    color: "rgba(255,255,255,0.6)",
+    textAlign: "center",
     lineHeight: 20,
   },
 });

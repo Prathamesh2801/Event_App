@@ -23,11 +23,12 @@ import BackgroundVideoBanner from "../components/BackgroundVideoBanner";
 import CustomButton from "../components/CustomButton";
 
 export default function UserRegistrationScreen({ navigation, route }) {
-  const { event, eventId } = route.params;
+  const { event = {}, eventId = "" } = route.params || {};
   const [eventName, setEventName] = useState("");
   const [eventLogo, setEventLogo] = useState("");
   const [loading, setLoading] = useState(false);
   const [userId, setUserId] = useState("");
+
   useLayoutEffect(() => {
     setEventName(event.Event_Name);
     setEventLogo(`${API_BASE_URL}/uploads/event_logos/${event.Event_Logo}`);
@@ -45,7 +46,6 @@ export default function UserRegistrationScreen({ navigation, route }) {
     setLoading(true);
     try {
       const response = await fetchSpecificUserId(userId, eventId);
-
       if (response.Status === true && response.Data) {
         Toast.show({
           type: "success",
@@ -56,8 +56,9 @@ export default function UserRegistrationScreen({ navigation, route }) {
         await AsyncStorage.setItem("userId", userId);
         await AsyncStorage.setItem("eventName", event.Event_Name);
         await AsyncStorage.setItem("eventLogo", event.Event_Logo);
+
         return navigation.navigate("MyTabs", {
-          event: response.Data.event,
+          event: response.Data.event || event,
           eventId: eventId,
         });
       } else {
@@ -83,56 +84,98 @@ export default function UserRegistrationScreen({ navigation, route }) {
   return (
     <>
       <BackgroundVideoBanner />
-      <KeyboardAvoidingView
-        style={{ flex: 1 }}
-        behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={Platform.select({ ios: 0, android: 20 })}
-      >
-        {/* Dismiss keyboard when tapping outside */}
-        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-          <SafeAreaView style={styles.rootOuterContainer}>
-            <ScrollView
-              contentContainerStyle={{
-                flexGrow: 1, // allow content to fill full height
-                justifyContent: "center", // vertically center when there's room
-                paddingVertical: 16,
-              }}
-              keyboardShouldPersistTaps="handled"
-            >
-              <View style={styles.rootInnerContainer}>
-                <View style={styles.container}>
-                  <Image source={{ uri: eventLogo }} width={150} height={150} />
-                  <Text style={styles.primaryText}>{eventName}</Text>
-                  <Text style={styles.secondaryText}>
-                    {" "}
-                    Sign in to your accounts
-                  </Text>
-                  <TextInput
-                    style={styles.inputText}
-                    onChangeText={setUserId}
-                    value={userId}
-                    placeholder="User Id : "
-                    editable={!loading}
+      {Platform.OS === 'web' ? (
+        <SafeAreaView style={styles.rootOuterContainer}>
+          <ScrollView
+            contentContainerStyle={{
+              flexGrow: 1,
+              justifyContent: "center",
+              paddingVertical: 16,
+              minHeight: '100%',
+            }}
+            keyboardShouldPersistTaps="handled"
+          >
+            <View style={[styles.rootInnerContainer, { minHeight: '100vh' }]}>
+              <View style={styles.container}>
+                <Image
+                  source={{ uri: eventLogo }}
+                  style={{ width: 150, height: 150 }}
+                />
+                <Text style={styles.primaryText}>{eventName}</Text>
+                <Text style={styles.secondaryText}>Sign in to your account</Text>
+                <TextInput
+                  style={styles.inputText}
+                  onChangeText={setUserId}
+                  value={userId}
+                  placeholder="User Id : "
+                  editable={!loading}
+                />
+                {loading ? (
+                  <ActivityIndicator size="large" color={Colors.accent500} />
+                ) : (
+                  <CustomButton
+                    text="Submit"
+                    onPress={pressHandler}
+                    color="#efab0d"
+                    rippleColor="rgba(0,0,0,0.1)"
+                    size="medium"
+                    borderRadius={30}
                   />
-
-                  {loading ? (
-                    <ActivityIndicator size="large" color={Colors.accent500} />
-                  ) : (
-                    <CustomButton
-                      text="Submit"
-                      onPress={pressHandler}
-                      color="#efab0d"
-                      rippleColor="rgba(0,0,0,0.1)"
-                      size="medium"
-                      borderRadius={30}
-                    />
-                  )}
-                </View>
+                )}
               </View>
-            </ScrollView>
-          </SafeAreaView>
-        </TouchableWithoutFeedback>
-      </KeyboardAvoidingView>
+            </View>
+          </ScrollView>
+        </SafeAreaView>
+      ) : (
+        <KeyboardAvoidingView
+          style={{ flex: 1 }}
+          behavior={Platform.OS === "ios" ? "padding" : "height"}
+          keyboardVerticalOffset={Platform.select({ ios: 0, android: 20 })}
+        >
+          <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+            <SafeAreaView style={styles.rootOuterContainer}>
+              <ScrollView
+                contentContainerStyle={{
+                  flexGrow: 1,
+                  justifyContent: "center",
+                  paddingVertical: 16,
+                }}
+                keyboardShouldPersistTaps="handled"
+              >
+                <View style={styles.rootInnerContainer}>
+                  <View style={styles.container}>
+                    <Image
+                      source={{ uri: eventLogo }}
+                      style={{ width: 150, height: 150 }}
+                    />
+                    <Text style={styles.primaryText}>{eventName}</Text>
+                    <Text style={styles.secondaryText}>Sign in to your account</Text>
+                    <TextInput
+                      style={styles.inputText}
+                      onChangeText={setUserId}
+                      value={userId}
+                      placeholder="User Id : "
+                      editable={!loading}
+                    />
+                    {loading ? (
+                      <ActivityIndicator size="large" color={Colors.accent500} />
+                    ) : (
+                      <CustomButton
+                        text="Submit"
+                        onPress={pressHandler}
+                        color="#efab0d"
+                        rippleColor="rgba(0,0,0,0.1)"
+                        size="medium"
+                        borderRadius={30}
+                      />
+                    )}
+                  </View>
+                </View>
+              </ScrollView>
+            </SafeAreaView>
+          </TouchableWithoutFeedback>
+        </KeyboardAvoidingView>
+      )}
     </>
   );
 }
@@ -140,18 +183,29 @@ export default function UserRegistrationScreen({ navigation, route }) {
 const styles = StyleSheet.create({
   rootOuterContainer: {
     flex: 1,
+    ...(Platform.OS === 'web' && {
+      height: '100vh',
+    }),
   },
   rootInnerContainer: {
     flex: 1,
     padding: 16,
+    ...(Platform.OS === 'web' && {
+      display: 'flex',
+      minHeight: '100%',
+    }),
   },
   container: {
     flex: 1,
-    // height: "70%",
     width: "100%",
     justifyContent: "center",
     alignItems: "center",
-    gap: 30,
+    ...(Platform.OS === 'web' ? {
+      gap: 30,
+      minHeight: 400,
+    } : {
+      gap: 30,
+    }),
   },
   primaryText: {
     color: "white",
@@ -169,6 +223,14 @@ const styles = StyleSheet.create({
     backgroundColor: "#fff",
     borderRadius: 10,
     padding: 10,
+    ...(Platform.OS === 'web' && {
+      maxWidth: 400,
+      fontSize: 16,
+      outlineStyle: 'none',
+      cursor: 'text',
+      WebkitAppearance: 'none',
+      MozAppearance: 'none',
+    }),
   },
   inputErrorBorder: {
     borderColor: "red",

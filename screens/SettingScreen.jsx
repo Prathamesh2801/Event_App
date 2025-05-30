@@ -5,6 +5,7 @@ import {
   ScrollView,
   TouchableOpacity,
   Alert,
+  Platform,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { BlurView } from "expo-blur";
@@ -61,18 +62,12 @@ export default function SettingScreen({ navigation }) {
       navigation.navigate('NotificationPage')
     }
   };
-
   const handleLogout = async () => {
-    Alert.alert("Logout", "Are you sure you want to logout?", [
-      {
-        text: "Cancel",
-        style: "cancel",
-      },
-      {
-        text: "Logout",
-        style: "destructive",
-        onPress: async () => {
-          // Handle logout logic
+    if (Platform.OS === 'web') {
+      // For web, use window.confirm
+      const confirmed = window.confirm("Are you sure you want to logout?");
+      if (confirmed) {
+        try {
           await AsyncStorage.multiRemove([
             "eventId",
             "userId",
@@ -81,9 +76,37 @@ export default function SettingScreen({ navigation }) {
           ]);
           navigation.navigate("EventRegister");
           console.log("User logged out");
+        } catch (error) {
+          console.error("Logout error:", error);
+        }
+      }
+    } else {
+      // For native platforms, use Alert
+      Alert.alert("Logout", "Are you sure you want to logout?", [
+        {
+          text: "Cancel",
+          style: "cancel",
         },
-      },
-    ]);
+        {
+          text: "Logout",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await AsyncStorage.multiRemove([
+                "eventId",
+                "userId",
+                "eventName",
+                "eventLogo",
+              ]);
+              navigation.navigate("EventRegister");
+              console.log("User logged out");
+            } catch (error) {
+              console.error("Logout error:", error);
+            }
+          },
+        },
+      ]);
+    }
   };
 
   const SettingItem = ({ iconName, title, onPress, showChevron = true }) => (
