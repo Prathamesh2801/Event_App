@@ -1,12 +1,12 @@
-import { StyleSheet, View } from 'react-native';
-import { useVideoPlayer, VideoView } from 'expo-video';
-import { memo, useEffect } from 'react';
+import { StyleSheet, View } from "react-native";
+import { useVideoPlayer, VideoView } from "expo-video";
+import { memo, useEffect } from "react";
 
 // Using memo to prevent unnecessary re-renders of the video component
 const BackgroundVideoBanner = memo(({ onVideoLoaded }) => {
   const player = useVideoPlayer(
-    require('../assets/vid/banner3.mp4'),   
-    player => {
+    require("../assets/vid/banner3.mp4"),
+    (player) => {
       player.loop = true;
       player.muted = true;
       player.play();
@@ -25,7 +25,7 @@ const BackgroundVideoBanner = memo(({ onVideoLoaded }) => {
     };
 
     // Add event listeners
-    player.addListener('statusChange', handleStatusChange);
+    player.addListener("statusChange", handleStatusChange);
 
     // Alternative approach - set a timeout as fallback
     // In case the event doesn't fire properly
@@ -37,7 +37,7 @@ const BackgroundVideoBanner = memo(({ onVideoLoaded }) => {
 
     // Cleanup
     return () => {
-      player.removeListener('statusChange', handleStatusChange);
+      player.removeListener("statusChange", handleStatusChange);
       clearTimeout(timeoutId);
     };
   }, [player, onVideoLoaded]);
@@ -57,10 +57,8 @@ const BackgroundVideoBanner = memo(({ onVideoLoaded }) => {
           }
         }}
         onReadyForDisplay={() => {
-          // Called when video is ready to display
-          if (onVideoLoaded) {
-            onVideoLoaded();
-          }
+          if (onVideoLoaded) onVideoLoaded();
+          player?.play(); // Force play on web
         }}
       />
     </View>
@@ -75,9 +73,9 @@ const styles = StyleSheet.create({
   },
   video: {
     flex: 1,
-    width: '100%',
-    height: '100%',
-  }
+    width: "100%",
+    height: "100%",
+  },
 });
 
 export default BackgroundVideoBanner;

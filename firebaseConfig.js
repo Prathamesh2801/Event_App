@@ -59,7 +59,7 @@ export const initializeFirebase = async () => {
 
     // Get FCM token
     const currentToken = await getToken(messaging, {
-      vapidKey: 'BE_bo5jqyZKcdCsyt9DT_gTaAS0FbMd9wyCeuVXwqZP9vxlUMHRBTCwSqyev7761hFsoEtrm43g41YipUOdKrLw',
+      vapidKey: 'BKpn0VKsrCq14m4lxjj7PRvOYVf_iSp1b8F3_xv_9TX8DnUMswhsalAtYfcYPFAPghlJBUfB6X7aRPxM4XjbcPQ',
       serviceWorkerRegistration: registration
     });
     

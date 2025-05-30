@@ -5,7 +5,7 @@ import UserRegistrationScreen from "./screens/UserRegistrationScreen";
 import { createNativeStackNavigator } from "@react-navigation/native-stack";
 import { initializeFirebase, onMessageListener } from "./firebaseConfig";
 import { createBottomTabNavigator } from "@react-navigation/bottom-tabs";
-import messaging from '@react-native-firebase/messaging';
+import messaging from "@react-native-firebase/messaging";
 import { NavigationContainer } from "@react-navigation/native";
 import { SafeAreaProvider } from "react-native-safe-area-context";
 import HomeScreen from "./screens/HomeScreen";
@@ -26,6 +26,7 @@ import { initPushNotification } from "./helper/pushNotification";
 
 import NotificationScreen from "./screens/NotificationScreen";
 import PollScreen from "./screens/PollScreen";
+import { AVPlaybackStatus, Audio } from "expo-av";
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -170,7 +171,18 @@ export default function App() {
           // Handle foreground messages in web
           onMessageListener()
             .then((payload) => {
-              console.log("Received foreground message:", payload);
+              console.log("📨 Received foreground message:", payload);
+
+              if (Notification.permission === "granted") {
+                const { title, body } = payload.notification;
+
+                new Notification(title || "New Message", {
+                  body: body || "You have a new notification",
+                  icon: "/icon.png", // optional but recommended
+                });
+              } else {
+                console.warn("Notifications not allowed by user");
+              }
             })
             .catch((err) => console.log("Failed to receive message:", err));
         } catch (error) {
@@ -185,7 +197,10 @@ export default function App() {
           if (messaging().isDeviceRegisteredForRemoteMessages) {
             // Handle background messages in native platforms
             messaging().setBackgroundMessageHandler(async (remoteMessage) => {
-              console.log("Handled in background:", remoteMessage?.notification);
+              console.log(
+                "Handled in background:",
+                remoteMessage?.notification
+              );
             });
           } else {
             await messaging().registerDeviceForRemoteMessages();
@@ -197,6 +212,7 @@ export default function App() {
     };
 
     initNotifications();
+    Audio.setIsEnabledAsync(false);
   }, []);
   return (
     <SafeAreaProvider>
